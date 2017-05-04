@@ -116,6 +116,14 @@ const uint8_t CH_EATR[]={ELEVATOR, AILERON, THROTTLE, RUDDER, AUX1, AUX2, AUX3, 
 uint8_t mode_select;
 uint8_t protocol_flags=0,protocol_flags2=0;
 
+#if defined(ALLOW_CONFIGURATION)
+uint8_t multi_config;
+#elif defined(INVERT_TELEMETRY)
+const uint8_t multi_config = 0x1;
+#else
+const uint8_t multi_config = 0x0;
+#endif
+
 // PPM variable
 volatile uint16_t PPM_data[NUM_CHN];
 
@@ -178,15 +186,18 @@ uint8_t pkt[MAX_PKT];//telemetry receiving packets
 	uint8_t telemetry_link=0; 
 	uint8_t telemetry_counter=0;
 	uint8_t telemetry_lost;
-#endif 
+#endif
 
 // Callback
 typedef uint16_t (*void_function_t) (void);//pointer to a function with no parameters which return an uint16_t integer
 void_function_t remote_callback = 0;
 
 // Init
-void setup()
-{
+void setup() {
+#if defined(ALLOW_CONFIGURATION)
+	read_multimodule_config();
+#endif
+
 	// General pinout
 	#ifdef ORANGE_TX
 		//XMEGA
@@ -215,17 +226,8 @@ void setup()
 		pinMode(CYRF_RST_pin,OUTPUT);
 		pinMode(PE1_pin,OUTPUT);
 		pinMode(PE2_pin,OUTPUT);
-		#if defined TELEMETRY
-			pinMode(TX_INV_pin,OUTPUT);
-			pinMode(RX_INV_pin,OUTPUT);
-			#if defined INVERT_SERIAL
-				TX_INV_on;//activated inverter for both serial TX and RX signals
-				RX_INV_on;
-			#else
-				TX_INV_off;
-				RX_INV_off;
-			#endif	
-		#endif
+		pinMode(TX_INV_pin,OUTPUT);
+		pinMode(RX_INV_pin,OUTPUT);
 		pinMode(BIND_pin,INPUT_PULLUP);
 		pinMode(PPM_pin,INPUT);
 		pinMode(S1_pin,INPUT_PULLUP);//dial switch
@@ -688,11 +690,11 @@ static void protocol_init()
 			telemetry_lost=1;
 			#ifdef BASH_SERIAL
 				TIMSK0 = 0 ;			// Stop all timer 0 interrupts
-				#ifdef INVERT_SERIAL
+				if (IS_TELEMTRY_INVERSION_ON)
 					SERIAL_TX_off;
-				#else
+				else
 					SERIAL_TX_on;
-				#endif
+
 				SerialControl.tail=0;
 				SerialControl.head=0;
 				SerialControl.busy=0;
@@ -740,7 +742,7 @@ static void protocol_init()
 				#if defined(HUBSAN_A7105_INO)
 					case MODE_HUBSAN:
 						PE1_off;	//antenna RF1
-						if(IS_BIND_BUTTON_FLAG_on) random_id(10,true); // Generate new ID if bind button is pressed.
+						if(IS_BIND_BUTTON_FLAG_on) random_id(EEPROM_ID_OFFSET,true); // Generate new ID if bind button is pressed.
 						next_callback = initHubsan();
 						remote_callback = ReadHubsan;
 						break;
@@ -796,12 +798,12 @@ static void protocol_init()
 							{
 								if(IS_BIND_BUTTON_FLAG_on)
 								{
-									eeprom_write_byte((EE_ADDR)(30+mode_select),0x00);	// reset to autobind mode for the current model
+									eeprom_write_byte((EE_ADDR)(MODELMODE_EEPROM_OFSET+mode_select),0x00);	// reset to autobind mode for the current model
 									option=0;
 								}
 								else
 								{	
-									option=eeprom_read_byte((EE_ADDR)(30+mode_select));	// load previous mode: autobind or fixed id
+									option=eeprom_read_byte((EE_ADDR)(MODELMODE_EEPROM_OFSET+mode_select));	// load previous mode: autobind or fixed id
 									if(option!=1) option=0;								// if not fixed id mode then it should be autobind
 								}
 							}
@@ -818,12 +820,12 @@ static void protocol_init()
 							{
 								if(IS_BIND_BUTTON_FLAG_on)
 								{
-									eeprom_write_byte((EE_ADDR)(30+mode_select),0x00);	// reset to autobind mode for the current model
+									eeprom_write_byte((EE_ADDR)(MODELMODE_EEPROM_OFSET+mode_select),0x00);	// reset to autobind mode for the current model
 									option=0;
 								}
 								else
 								{	
-									option=eeprom_read_byte((EE_ADDR)(30+mode_select));	// load previous mode: autobind or fixed id
+									option=eeprom_read_byte((EE_ADDR)(MODELMODE_EEPROM_OFSET+mode_select));	// load previous mode: autobind or fixed id
 									if(option!=1) option=0;								// if not fixed id mode then it should be autobind
 								}
 							}
@@ -995,10 +997,8 @@ static void protocol_init()
 	BIND_BUTTON_FLAG_off;						// do not bind/reset id anymore even if protocol change
 }
 
-void update_serial_data()
+inline void parse_serial_multi_frame()
 {
-	RX_DONOTUPDTAE_on;
-	RX_FLAG_off;								//data is being processed
 	if(rx_ok_buff[1]&0x20)						//check range
 		RANGE_FLAG_on;
 	else
@@ -1055,7 +1055,98 @@ void update_serial_data()
 		p++;
 		Servo_data[i]=((((*((uint32_t *)p))>>dec)&0x7FF)*5)/8+860;	//value range 860<->2140 -125%<->+125%
 	}
+}
+
+#if 0
+// Even though this is documented as working on stm32 it does not work
+inline void reset()
+{
+#if defined STM32_BOARD
+	//  STM32: Use system reset: Copied from NVIC_SystemReset() + needed definitions
+	#define SCB_AIRCR_VECTKEY_Pos              16
+
+    #define SCB_AIRCR_PRIGROUP_Pos              8                                             /*!< SCB AIRCR: PRIGROUP Position */
+    #define SCB_AIRCR_PRIGROUP_Msk             (7ul << SCB_AIRCR_PRIGROUP_Pos)
+
+	#define SCB_AIRCR_SYSRESETREQ_Pos           2
+	#define SCB_AIRCR_SYSRESETREQ_Msk          (1ul << SCB_AIRCR_SYSRESETREQ_Pos)
+
+    #define SCS_BASE            (0xE000E000UL)
+	#define AIRCR ((volatile uint32_t*) (SCS_BASE + 0x0C))
+    *AIRCR  = ((0x5FA << SCB_AIRCR_VECTKEY_Pos)      |
+                 (*AIRCR & SCB_AIRCR_PRIGROUP_Msk) |
+                 SCB_AIRCR_SYSRESETREQ_Msk);                   /* Keep priority group unchanged */
+    asm volatile ("dsb");                                      /* Ensure completion of memory access */
+    while(1);                                                    /* wait until reset */
+#else
+	// AVR: Trigger  reset via watchdog
+	cli();
+	wdt_enable (WDTO_15MS);
+	while (1);
+#endif
+}
+#endif
+
+#if defined(ALLOW_CONFIGURATION)
+void read_multimodule_config() {
+// Check if we have valid eeprom contents
+	if (eeprom_read_byte((EE_ADDR)(EEPROM_ID_VALID_OFFSET)) == 0xf0)
+	{
+		multi_config = eeprom_read_byte((EE_ADDR)(CONFIG_EEPROM_OFFSET));
+	}
+	else
+	{
+		// Set default values that should fit er9x/erksy9x
+		// OpenTX will override the values anyway
+		multi_config = 0x00;
+		eeprom_write_byte(CONFIG_EEPROM_OFFSET, multi_config);
+	}
+}
+#endif
+
+void parse_serial_multi_command()
+{
+	// Header 'M', 'P, Type, Len
+	if (rx_buff[1] != 'P')
+		return;
+	uint8_t len = rx_buff[3];
+	switch (rx_buff[2]) {
+#ifdef ALLOW_CONFIGURATION
+		case MULTI_COMMAND_CONFIG: {
+			if (len == 0)
+				return;
+
+			uint8_t newconfig = rx_buff[4];
+
+			// Echo back config
+            multi_send_header (MULTI_COMMAND_CONFIG, 2);
+            Serial_write (multi_config);
+            Serial_write (newconfig);
+			if (newconfig != multi_config)
+			{
+				multi_config = newconfig;
+				eeprom_write_byte(CONFIG_EEPROM_OFFSET, newconfig);
+				// Reinit serial port to enable/disable inversion
+				Mprotocol_serial_init();
+			}
+		}
+		break;
+#endif
+		default:
+			;
+	}
+}
+
+void update_serial_data()
+{
+	RX_DONOTUPDTAE_on;
+	RX_FLAG_off;								//data is being processed
 	RX_DONOTUPDTAE_off;
+	if (rx_ok_buff[0] == 'M')
+		parse_serial_multi_command();
+	else
+		parse_serial_multi_frame();
+
 	#ifdef ORANGE_TX
 		cli();
 	#else
@@ -1106,10 +1197,16 @@ void Mprotocol_serial_init()
 		USARTC0.CTRLA = (USARTC0.CTRLA & 0xCF) | 0x10 ;
 		USARTC0.CTRLC = 0x2B ;
 		UDR0 ;
-		#ifdef INVERT_SERIAL
+		if (IS_TELEMTRY_INVERSION_ON)
 			PORTC.PIN3CTRL |= 0x40 ;
-		#endif
-	#elif defined STM32_BOARD
+    #elif defined STM32_BOARD
+		if (IS_TELEMTRY_INVERSION_ON) {
+				TX_INV_on;//activated inverter for both serial TX and RX signals
+				RX_INV_on;
+			} else {
+				TX_INV_off;
+				RX_INV_off;
+			}
 		usart2_begin(100000,SERIAL_8E2);
 		usart3_begin(100000,SERIAL_8E2);
 		USART2_BASE->CR1 |= USART_CR1_PCE_BIT;
@@ -1185,7 +1282,7 @@ static uint32_t random_id(uint16_t address, uint8_t create_new)
 			{
 				id<<=8;
 				id|=eeprom_read_byte((EE_ADDR)address+i-1);
-			}	
+			}
 			if(id!=0x2AD141A7)	//ID with seed=0
 				return id;
 		}
@@ -1201,7 +1298,7 @@ static uint32_t random_id(uint16_t address, uint8_t create_new)
 		{
 			eeprom_write_byte((EE_ADDR)address+i,id);
 			id>>=8;
-		}	
+		}
 		eeprom_write_byte((EE_ADDR)(address+10),0xf0);//write bind flag in eeprom.
 		return id;
 	#else
@@ -1287,7 +1384,7 @@ static uint32_t random_id(uint16_t address, uint8_t create_new)
 				idx=0;discard_frame=0;
 				RX_MISSED_BUFF_off;			// If rx_buff was good it's not anymore...
 				rx_buff[0]=UDR0;
-				if((rx_buff[0]&0xFE)==0x54)	// If 1st byte is 0x54 or 0x55 it looks ok
+				if((rx_buff[0]&0xFE)==0x54 || rx_buff[0]=='M')	// If 1st byte is 0x54, 0x55 or 'M' it looks ok
 				{
 					TX_RX_PAUSE_on;
 					tx_pause();
@@ -1308,8 +1405,8 @@ static uint32_t random_id(uint16_t address, uint8_t create_new)
 			{
 				rx_buff[idx++]=UDR0;		// Store received byte
 				if(idx>=RXBUFFER_SIZE)
-				{	// A full frame has been received
-					if(!IS_RX_DONOTUPDTAE_on)
+				{	// A full frame has been received or a long enough multicommand message
+					if(!IS_RX_DONOTUPDTAE_on || (rx_buff[0] == 'M' && idx >= 4 && rx_buff[3] == idx-4))
 					{ //Good frame received and main is not working on the buffer
 						memcpy((void*)rx_ok_buff,(const void*)rx_buff,RXBUFFER_SIZE);// Duplicate the buffer
 						RX_FLAG_on;			// flag for main to process servo data
