@@ -203,6 +203,7 @@ uint16_t ReadSFHSS()
 
 		/* Work cycle, 6.8ms, second packet 1.65ms after first */
 		case SFHSS_DATA1:
+		    telemetry_set_input_sync(6800);
 			SFHSS_build_data_packet();
 			SFHSS_send_packet();
 			phase = SFHSS_DATA2;

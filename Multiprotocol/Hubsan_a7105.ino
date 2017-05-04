@@ -284,6 +284,7 @@ uint16_t ReadHubsan()
 #endif
 				if( phase == DATA_1)
 						A7105_SetPower(); //Keep transmit power in sync
+			    telemetry_set_input_sync(10000);
 				hubsan_build_packet();
 				A7105_WriteData(16, phase == DATA_5 && id_data == ID_NORMAL ? channel + 0x23 : channel);
 				if (phase == DATA_5)

@@ -20,8 +20,13 @@
 uint8_t RetrySequence ;
 
 #if ( defined(MULTI_TELEMETRY) || defined(MULTI_STATUS) )
-	#define MULTI_TIME 500 //in ms
+	#define MULTI_TIME           500  //in ms
+    #define INPUT_SYNC_TIME      60   //in ms
+    #define INPUT_ADDITIONAL_DELAY  100  // in 10µs, 100 => 1000 µs
 	uint32_t lastMulti = 0;
+	uint32_t lastInputSync = 0;
+	uint16_t inputDelay = 0;
+	uint16_t inputRefreshRate = 9000;
 #endif
 
 #if defined SPORT_TELEMETRY	
@@ -55,6 +60,25 @@ static void multi_send_header(uint8_t type, uint8_t len)
 		Serial_write(type);
     }
 	Serial_write(len);
+}
+
+inline void telemetry_set_input_sync(uint16_t refreshRate)
+{
+    inputRefreshRate = refreshRate;
+    inputDelay = (TCNT1 - last_serial_input)/2;
+    if(inputDelay > 0x8000)
+        inputDelay =inputDelay - 0x8000;
+}
+
+static void mult_send_inputsync()
+{
+    multi_send_header(MULTI_TELEMETRY_INPUTSYNC, 6);
+    Serial_write(inputRefreshRate >> 8);
+    Serial_write(inputRefreshRate & 0xff);
+    Serial_write(inputDelay >> 8);
+    Serial_write(inputDelay & 0xff);
+    Serial_write(INPUT_SYNC_TIME);
+    Serial_write(INPUT_ADDITIONAL_DELAY);
 }
 
 static void multi_send_status()
@@ -557,6 +581,10 @@ void TelemetryUpdate()
 				multi_send_status();
 				lastMulti = now;
 				return;
+			} else if (IS_EXTRA_TELEMETRY_ON && now - lastInputSync > INPUT_SYNC_TIME) {
+			    mult_send_inputsync();
+			    lastInputSync = now;
+			    return;
 			}
 		}
 	#endif

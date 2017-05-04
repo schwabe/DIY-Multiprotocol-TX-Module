@@ -305,7 +305,6 @@ enum MultiPacketTypes {
 #define IS_MULTI_TELEMETRY_ON		(multi_config & 0x02)
 #define IS_EXTRA_TELEMETRY_ON       (multi_config & 0x04)
 
-
 //********************
 //*** Blink timing ***
 //********************
@@ -688,13 +687,14 @@ Serial: 100000 Baud 8e2      _ xxxx xxxx p --
   Type 0x05 DSM bind data
 	data[0-16] DSM bind data
 
-    technically DSM bind data is only 10 bytes but multi send 16
-    like with telemtry, check length field)
+    technically DSM bind data is only 10 bytes but multi sends 16
+    like with telemtery, check length field)
 
   Type 0x06 Flysky AFHDS2 telemetry data
    length: 29
    data[0] = RSSI value
    data[1-28] telemetry data
+
 
  Type 0x08 Input synchronisation
     Informs the TX about desired rate and current delay

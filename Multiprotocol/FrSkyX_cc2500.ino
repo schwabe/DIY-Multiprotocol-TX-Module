@@ -208,6 +208,8 @@ uint16_t ReadFrSkyX()
 			CC2500_Strobe(CC2500_SIDLE);		
 			CC2500_WriteData(packet, packet[0]+1);
 			//
+
+			telemetry_set_input_sync(9000);
 			frskyX_data_frame();
 			state++;
 			return 5500;

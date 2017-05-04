@@ -155,6 +155,11 @@ static void __attribute__((unused)) flysky_build_packet(uint8_t init)
 
 uint16_t ReadFlySky()
 {
+    uint16_t packet_period = 1510;	//1460 on deviation but not working with the latest V911 bricks... Turnigy 9X v2 is 1533, Flysky TX for 9XR/9XR Pro is 1510, V911 TX is 1490.
+
+    if(sub_protocol==CX20)
+		packet_period=3984;
+
     if (bind_counter)
 	{
         flysky_build_packet(1);
@@ -165,16 +170,14 @@ uint16_t ReadFlySky()
     }
 	else
 	{
+	    telemetry_set_input_sync(packet_period);
 		flysky_build_packet(0);
         A7105_WriteData(21, hopping_frequency[hopping_frequency_no & 0x0F]);
 		A7105_SetPower();
     }
     hopping_frequency_no++;
 
-	if(sub_protocol==CX20)
-		return 3984;
-	else
-		return 1510;	//1460 on deviation but not working with the latest V911 bricks... Turnigy 9X v2 is 1533, Flysky TX for 9XR/9XR Pro is 1510, V911 TX is 1490.
+    return packet_period;
 }
 
 const uint8_t PROGMEM tx_channels[8][4] = {
