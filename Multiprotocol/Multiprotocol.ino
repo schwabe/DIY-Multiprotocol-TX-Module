@@ -224,6 +224,7 @@ void setup() {
 		pinMode(CC25_CSN_pin,OUTPUT);
 		pinMode(NRF_CSN_pin,OUTPUT);
 		pinMode(CYRF_CSN_pin,OUTPUT);
+		pinMode(SPI_CSN_pin,OUTPUT);
 		pinMode(CYRF_RST_pin,OUTPUT);
 		pinMode(PE1_pin,OUTPUT);
 		pinMode(PE2_pin,OUTPUT);
@@ -799,12 +800,12 @@ static void protocol_init()
 							{
 								if(IS_BIND_BUTTON_FLAG_on)
 								{
-									eeprom_write_byte((EE_ADDR)(MODELMODE_EEPROM_OFSET+mode_select),0x00);	// reset to autobind mode for the current model
+									eeprom_write_byte((EE_ADDR)(MODELMODE_EEPROM_OFFSET+mode_select),0x00);	// reset to autobind mode for the current model
 									option=0;
 								}
 								else
 								{	
-									option=eeprom_read_byte((EE_ADDR)(MODELMODE_EEPROM_OFSET+mode_select));	// load previous mode: autobind or fixed id
+									option=eeprom_read_byte((EE_ADDR)(MODELMODE_EEPROM_OFFSET+mode_select));	// load previous mode: autobind or fixed id
 									if(option!=1) option=0;								// if not fixed id mode then it should be autobind
 								}
 							}
@@ -821,12 +822,12 @@ static void protocol_init()
 							{
 								if(IS_BIND_BUTTON_FLAG_on)
 								{
-									eeprom_write_byte((EE_ADDR)(MODELMODE_EEPROM_OFSET+mode_select),0x00);	// reset to autobind mode for the current model
+									eeprom_write_byte((EE_ADDR)(MODELMODE_EEPROM_OFFSET+mode_select),0x00);	// reset to autobind mode for the current model
 									option=0;
 								}
 								else
 								{	
-									option=eeprom_read_byte((EE_ADDR)(MODELMODE_EEPROM_OFSET+mode_select));	// load previous mode: autobind or fixed id
+									option=eeprom_read_byte((EE_ADDR)(MODELMODE_EEPROM_OFFSET+mode_select));	// load previous mode: autobind or fixed id
 									if(option!=1) option=0;								// if not fixed id mode then it should be autobind
 								}
 							}
@@ -1105,23 +1106,6 @@ void read_multimodule_config() {
 }
 #endif
 
-#ifdef ALLOW_CONFIGURATION
-void read_multimodule_config() {
-// Check if we have valid eeprom contents
-	if (eeprom_read_byte((EE_ADDR)(address + IDVALID_EEPROM_OFSET)) == 0xf0)
-	{
-		multi_config = eeprom_read_byte((EE_ADDR)(CONFIG_EEPROM_OFFSET));
-	}
-	else
-	{
-		// Set default values that should fit er9x/erksy9x
-		// OpenTX will override the values anyway
-		multi_config = 0x00;
-		eeprom_write_byte(CONFIG_EEPROM_OFFSET, multi_config);
-	}
-}
-#endif
-
 void parse_serial_multi_command()
 {
 	// Header 'M', 'P, Type, Len
@@ -1294,7 +1278,7 @@ static uint32_t random_id(uint16_t address, uint8_t create_new)
 	#ifndef FORCE_GLOBAL_ID
 		uint32_t id=0;
 
-		if(eeprom_read_byte((EE_ADDR)(address+IDVALID_EEPROM_OFSET))==0xf0 && !create_new)
+		if(eeprom_read_byte((EE_ADDR)(address+10))==0xf0 && !create_new)
 		{  // TXID exists in EEPROM
 			for(uint8_t i=4;i>0;i--)
 			{

@@ -444,7 +444,7 @@ enum {
 /** EEPROM Layout */
 #define EEPROM_ID_OFFSET		10		// Module ID (4 bytes)
 #define EEPROM_ID_VALID_OFFSET	20		// 1 byte flag that ID is valid
-#define MODELMODE_EEPROM_OFSET 	30      // Autobind mode, 1 byte per model, end is 46
+#define MODELMODE_EEPROM_OFFSET 	30      // Autobind mode, 1 byte per model, end is 46
 #define AFHDS2A_EEPROM_OFFSET	50		// RX ID, 4 byte per model id, end is 114
 #define CONFIG_EEPROM_OFFSET 	120		// Current configuration of the multimodule
 

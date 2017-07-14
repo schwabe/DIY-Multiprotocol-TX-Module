@@ -64,6 +64,12 @@ static void multi_send_header(uint8_t type, uint8_t len)
 
 inline void telemetry_set_input_sync(uint16_t refreshRate)
 {
+    static int c=0;
+    if (c++%2==0)
+        SPI_CSN_on;
+    else
+       SPI_CSN_off;
+
     inputRefreshRate = refreshRate;
     inputDelay = (TCNT1 - last_serial_input)/2;
     if(inputDelay > 0x8000)
