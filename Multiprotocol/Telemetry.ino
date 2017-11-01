@@ -64,12 +64,13 @@ static void multi_send_header(uint8_t type, uint8_t len)
 
 inline void telemetry_set_input_sync(uint16_t refreshRate)
 {
+#if defined(STM32_BOARD)
     static int c=0;
     if (c++%2==0)
         SPI_CSN_on;
     else
        SPI_CSN_off;
-
+#endif
     inputRefreshRate = refreshRate;
     inputDelay = (TCNT1 - last_serial_input)/2;
     if(inputDelay > 0x8000)
@@ -578,7 +579,7 @@ void TelemetryUpdate()
 			t -= h ;
 		if ( t < 32 )
 			return ;
-	#endif
+    #endif
 	#if ( defined(MULTI_TELEMETRY) || defined(MULTI_STATUS) )
 		{
 			uint32_t now = millis();
@@ -659,6 +660,20 @@ void TelemetryUpdate()
 /**  Serial TX routines  **/
 /**************************/
 /**************************/
+
+#if defined (SERIAL_STATUS)
+	void StatusSerial_write(uint8_t data)
+		{
+		uint8_t nextHead ;
+		nextHead = tx_status_head + 1 ;
+		if ( nextHead >= TXBUFFER_SIZE )
+			nextHead = 0 ;
+		tx_status_buff[nextHead]=data;
+		tx_status_head = nextHead ;
+		tx_status_resume();
+	}
+
+#endif
 
 #ifndef BASH_SERIAL
 	// Routines for normal serial output
@@ -779,11 +794,40 @@ void TelemetryUpdate()
 		#endif		
 	}
 	#ifdef STM32_BOARD
+        //Serial Status TX
+    #if defined(SERIAL_STATUS)
+    	void __irq_usart1()
+	    {	// Transmit interrupt
+
+
+	    	if(USART1_BASE->SR & USART_SR_TXE)
+		    {
+		        if(tx_status_head!=tx_status_tail)
+        		{
+		        	if(++tx_status_tail>=TXBUFFER_SIZE)//head
+				        tx_status_tail=0;
+
+				    USART1_BASE->DR=tx_status_buff[tx_status_tail];//clears TXE bit
+        		}
+    		if (tx_status_tail == tx_status_head)
+	    		tx_status_pause(); // Check if all data is transmitted . if yes disable transmitter UDRE interrupt
+			}
+
+	    }
+
+    	void usart1_begin(uint32_t baud,uint32_t config )
+		{
+			usart_init(USART1);
+			usart_config_gpios_async(USART1,GPIOA,PIN_MAP[PA10].gpio_bit,GPIOA,PIN_MAP[PA9].gpio_bit,config);
+			usart_set_baud_rate(USART1, STM32_PCLK1, baud);
+			usart_enable(USART1);
+		}
+    #endif
 		void usart2_begin(uint32_t baud,uint32_t config )
 		{
 			usart_init(USART2); 
 			usart_config_gpios_async(USART2,GPIOA,PIN_MAP[PA3].gpio_bit,GPIOA,PIN_MAP[PA2].gpio_bit,config);
-			usart_set_baud_rate(USART2, STM32_PCLK1, baud);//
+			usart_set_baud_rate(USART2, STM32_PCLK1, baud);
 			usart_enable(USART2);
 		}
 		void usart3_begin(uint32_t baud,uint32_t config )

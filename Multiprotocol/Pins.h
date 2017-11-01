@@ -209,7 +209,7 @@
 	#endif
 #else //STM32_BOARD
 	#define	BIND_pin		PA0
-	#define	LED_pin			PA1						
+	#define	LED_pin			PA1
 	//
 	#define	PPM_pin			PA8								//PPM  5V tolerant													
 	//
@@ -265,8 +265,8 @@
 	#define	CYRF_CSN_on		digitalWrite(CYRF_CSN_pin,HIGH)		
 	#define	CYRF_CSN_off	digitalWrite(CYRF_CSN_pin,LOW)
 
-	#define	SPI_CSN_on		digitalWrite(CYRF_CSN_pin,HIGH)
-	#define	SPI_CSN_off		digitalWrite(CYRF_CSN_pin,LOW)
+	#define	SPI_CSN_on		digitalWrite(SPI_CSN_pin,HIGH)
+	#define	SPI_CSN_off		digitalWrite(SPI_CSN_pin,LOW)
 
 	#define	CYRF_RST_HI		digitalWrite(CYRF_RST_pin,HIGH)	//reset cyrf 
 	#define	CYRF_RST_LO		digitalWrite(CYRF_RST_pin,LOW)	//

@@ -20,6 +20,8 @@
 #define VERSION_MINOR		1
 #define VERSION_REVISION	6
 #define VERSION_PATCH_LEVEL	22
+
+
 //******************
 // Protocols
 //******************
@@ -304,6 +306,15 @@ enum MultiPacketTypes {
 #define IS_TELEMTRY_INVERSION_ON	(multi_config & 0x01)
 #define IS_MULTI_TELEMETRY_ON		(multi_config & 0x02)
 #define IS_EXTRA_TELEMETRY_ON       (multi_config & 0x04)
+
+
+//Status messages
+#if defined(__arm__)
+#define SERIAL_STATUS 1
+#define status(msg, ...)  {char buf[64]; sprintf(buf, msg "\r\n", ##__VA_ARGS__); for(int i=0;buf[i] !=0; i++) StatusSerial_write(buf[i]);}
+#else
+#define status(...)
+#endif
 
 //********************
 //*** Blink timing ***

@@ -55,6 +55,7 @@
 	void ISR_COMPB();
 	extern "C"
 	{
+		void __irq_usart1(void);
 		void __irq_usart2(void);
 		void __irq_usart3(void);
 	}
@@ -177,7 +178,12 @@ uint8_t pkt[MAX_PKT];//telemetry receiving packets
 		volatile uint8_t tx_buff[TXBUFFER_SIZE];
 		volatile uint8_t tx_head=0;
 		volatile uint8_t tx_tail=0;
-	#endif // BASH_SERIAL
+    #endif // BASH_SERIAL
+	#ifdef SERIAL_STATUS
+		volatile uint8_t tx_status_buff[TXBUFFER_SIZE];
+		volatile uint8_t tx_status_head=0;
+		volatile uint8_t tx_status_tail=0;
+    #endif
 	uint8_t v_lipo1;
 	uint8_t v_lipo2;
 	uint8_t RX_RSSI;
@@ -195,10 +201,18 @@ void_function_t remote_callback = 0;
 
 // Init
 void setup() {
-#if defined(ALLOW_CONFIGURATION)
-	read_multimodule_config();
+	// Setup diagnostic uart before anything else
+#if defined(SERIAL_STATUS)
+	usart1_begin(115200,SERIAL_8N1);
+	tx_status_resume();
+	status("Multiprotocol version: %d.%d.%d.%d", VERSION_MAJOR, VERSION_MINOR, VERSION_REVISION, VERSION_PATCH_LEVEL);
 #endif
 
+
+#if defined(ALLOW_CONFIGURATION)
+	read_multimodule_config();
+	status("Module config flag: %x", multi_config);
+#endif
 	// General pinout
 	#ifdef ORANGE_TX
 		//XMEGA
@@ -329,7 +343,8 @@ void setup() {
 			((MODE_DIAL2_ipr & _BV(MODE_DIAL2_pin)) ? 0 : 2) +
 			((MODE_DIAL3_ipr & _BV(MODE_DIAL3_pin)) ? 0 : 4) +
 			((MODE_DIAL4_ipr & _BV(MODE_DIAL4_pin)) ? 0 : 8);
-	#endif
+    #endif
+    status("Mode switch reads as %d", mode_select);
 
 	// Update LED
 	LED_off;
@@ -349,6 +364,8 @@ void setup() {
 
 	// Read or create protocol id
 	MProtocol_id_master=random_id(10,false);
+
+	status("Module Id: %x", MProtocol_id_master);
 	
 #ifdef ENABLE_PPM
 	//Protocol and interrupts initialization
@@ -400,6 +417,7 @@ void setup() {
 		#endif //ENABLE_SERIAL
 	}
 	servo_mid=servo_min_100+servo_max_100;	//In fact 2* mid_value
+	status("init complete");
 }
 
 // Main
@@ -657,6 +675,18 @@ inline void tx_resume()
 		}
 	#endif
 }
+
+#if defined(SERIAL_STATUS)
+inline void tx_status_resume()
+{
+	USART1_BASE->CR1 |= USART_CR1_TXEIE;
+}
+
+inline void tx_status_pause()
+{
+	USART1_BASE->CR1 &= ~ USART_CR1_TXEIE;
+}
+#endif
 
 #ifdef STM32_BOARD	
 void start_timer2()
@@ -1023,6 +1053,7 @@ inline void parse_serial_multi_frame()
 		protocol=(rx_ok_buff[0]==0x55?0:32) + (rx_ok_buff[1]&0x1F);	//protocol no (0-63) bits 4-6 of buff[1] and bit 0 of buf[0]
 		sub_protocol=(rx_ok_buff[2]>>4)& 0x07;	//subprotocol no (0-7) bits 4-6
 		RX_num=rx_ok_buff[2]& 0x0F;				// rx_num bits 0---3
+		status("New protocol selected: %d, sub proto %d, rxnum %d", protocol, sub_protocol, RX_num);
 	}
 	else
 	if( ((rx_ok_buff[1]&0x80)!=0) && ((cur_protocol[1]&0x80)==0) )		// Bind flag has been set
@@ -1108,6 +1139,7 @@ void read_multimodule_config() {
 
 void parse_serial_multi_command()
 {
+	status("m cmd");
 	// Header 'M', 'P, Type, Len
 	if (rx_buff[1] != 'P')
 		return;
@@ -1115,6 +1147,7 @@ void parse_serial_multi_command()
 	switch (rx_buff[2]) {
 #ifdef ALLOW_CONFIGURATION
 		case MULTI_COMMAND_CONFIG: {
+			status("cmd cfg");
 			if (len == 0)
 				return;
 
@@ -1126,6 +1159,7 @@ void parse_serial_multi_command()
             Serial_write (newconfig);
 			if (newconfig != multi_config)
 			{
+				status("New multimodule config: %x->%x", multi_config, newconfig);
 				multi_config = newconfig;
 				eeprom_write_byte(CONFIG_EEPROM_OFFSET, newconfig);
 				// Reinit serial port to enable/disable inversion
@@ -1134,6 +1168,10 @@ void parse_serial_multi_command()
 		}
 		break;
 #endif
+		case MULTI_COMMAND_FAILSAFE:
+		{
+			status("Received failsafe: ")
+		}
 		default:
 			;
 	}
@@ -1209,6 +1247,7 @@ void Mprotocol_serial_init()
 				TX_INV_off;
 				RX_INV_off;
 			}
+
 		usart2_begin(100000,SERIAL_8E2);
 		usart3_begin(100000,SERIAL_8E2);
 		USART2_BASE->CR1 |= USART_CR1_PCE_BIT;
