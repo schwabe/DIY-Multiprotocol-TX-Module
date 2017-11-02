@@ -63,7 +63,7 @@ static void __attribute__((unused)) DEVO_add_pkt_suffix()
 		BIND_SET_PULLUP;										// set pullup
 		if(IS_BIND_BUTTON_on)
 		{
-			eeprom_write_byte((EE_ADDR)(30+mode_select),0x01);	// Set fixed id mode for the current model
+			eeprom_write_byte((EE_ADDR)(MODELMODE_EEPROM_OFFSET+mode_select),0x01);	// Set fixed id mode for the current model
 			option=1;
 		}
 		BIND_SET_OUTPUT;
@@ -261,6 +261,7 @@ uint16_t devo_callback()
 	if (txState == 0)
 	{
 		txState = 1;
+    	telemetry_set_input_sync(2400);
 		DEVO_BuildPacket();
 		CYRF_WriteDataPacket(packet);
 		return 1200;
