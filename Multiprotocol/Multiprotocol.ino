@@ -1139,7 +1139,7 @@ void read_multimodule_config() {
 
 void parse_serial_multi_command()
 {
-	status("m cmd");
+	status("multi command type %d, len %d", rx_buff[2], rx_buff[3]);
 	// Header 'M', 'P, Type, Len
 	if (rx_buff[1] != 'P')
 		return;
@@ -1147,7 +1147,6 @@ void parse_serial_multi_command()
 	switch (rx_buff[2]) {
 #ifdef ALLOW_CONFIGURATION
 		case MULTI_COMMAND_CONFIG: {
-			status("cmd cfg");
 			if (len == 0)
 				return;
 
@@ -1159,7 +1158,7 @@ void parse_serial_multi_command()
             Serial_write (newconfig);
 			if (newconfig != multi_config)
 			{
-				status("New multimodule config: %x->%x", multi_config, newconfig);
+				status("New multimodule config: %x -> %x", multi_config, newconfig);
 				multi_config = newconfig;
 				eeprom_write_byte(CONFIG_EEPROM_OFFSET, newconfig);
 				// Reinit serial port to enable/disable inversion
@@ -1170,8 +1169,8 @@ void parse_serial_multi_command()
 #endif
 		case MULTI_COMMAND_FAILSAFE:
 		{
-			status("Received failsafe: ")
 		}
+		break;
 		default:
 			;
 	}

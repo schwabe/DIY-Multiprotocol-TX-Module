@@ -21,7 +21,7 @@ uint8_t RetrySequence ;
 
 #if ( defined(MULTI_TELEMETRY) || defined(MULTI_STATUS) )
 	#define MULTI_TIME           500  //in ms
-    #define INPUT_SYNC_TIME      60   //in ms
+    #define INPUT_SYNC_TIME      100   //in ms
     #define INPUT_ADDITIONAL_DELAY  100  // in 10µs, 100 => 1000 µs
 	uint32_t lastMulti = 0;
 	uint32_t lastInputSync = 0;
@@ -71,10 +71,16 @@ inline void telemetry_set_input_sync(uint16_t refreshRate)
     else
        SPI_CSN_off;
 #endif
+    // Only record input Delay after a frame has really been received
+    // Otherwise protocols with faster refresh rates then the TX sends (e.g. 3ms vs 6ms) will screw up the calcualtion
     inputRefreshRate = refreshRate;
-    inputDelay = (TCNT1 - last_serial_input)/2;
-    if(inputDelay > 0x8000)
-        inputDelay =inputDelay - 0x8000;
+    if (last_serial_input != 0) {
+        inputDelay = (TCNT1 - last_serial_input)/2;
+        if(inputDelay > 0x8000)
+            inputDelay =inputDelay - 0x8000;
+        last_serial_input=0;
+    }
+
 }
 
 static void mult_send_inputsync()
