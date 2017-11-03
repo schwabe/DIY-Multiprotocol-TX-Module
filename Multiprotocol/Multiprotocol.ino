@@ -78,6 +78,13 @@ uint8_t  Servo_AUX;
 uint16_t servo_max_100,servo_min_100,servo_max_125,servo_min_125;
 uint16_t servo_mid;
 
+
+// Failsafe data
+#if defined(ALLOW_CONFIGURATION)
+volatile uint8_t failSafeMode=0;
+uint16_t Failsafe_data[NUM_CHN];
+#endif
+
 // Protocol variables
 uint8_t  cyrfmfg_id[6];//for dsm2 and devo
 uint8_t  rx_tx_addr[5];
@@ -625,7 +632,7 @@ void loop()
 					break;
 				}
 				#ifndef STM32_BOARD
-					while((TIFR1 & OCF1A_bm) == 0);	// wait 2ms...
+					while((TIFR1 & OCF1A_bm) == 0);	// wait 0.5ms...
 				#else
 					while((TIMER2_BASE->SR & TIMER_SR_CC1IF)==0);//0.5ms wait
 				#endif
@@ -1312,16 +1319,32 @@ void parse_serial_multi_command()
 				multi_config = newconfig;
 				eeprom_write_byte(CONFIG_EEPROM_OFFSET, newconfig);
 				// Reinit serial port to enable/disable inversion
-				Mprotocol_serial_init();
+				Mprotocol_serial_init(0);
 			}
 		}
 		break;
-#endif
 		case MULTI_COMMAND_FAILSAFE:
 		{
+            failSafeMode = FAILSEFASE_INVALID;
+            volatile uint8_t *p=rx_ok_buff+4;
+            uint8_t dec=-3;
+            for(uint8_t i=0;i<NUM_CHN;i++)
+            {
+                dec += 3;
+                if (dec >= 8)
+                {
+                    dec -= 8;
+                    p++;
+                }
+                p++;
+                Failsafe_data[i] = ((*((uint32_t *) p)) >> dec) & 0x7FF;
+            }
+            failSafeMode = rx_buff[4];
+
 		}
 		break;
-		default:
+#endif
+            default:
 			;
 	}
 }
@@ -1427,7 +1450,6 @@ void Mprotocol_serial_init()
             RX_INV_off;
         }
 
-#endif // CHECK_FOR_BOOTLOADER
 		usart3_begin(100000,SERIAL_8E2);
 		USART3_BASE->CR1 &= ~ USART_CR1_RE;//disable 
 		USART2_BASE->CR1 &= ~ USART_CR1_TE;//disable transmit

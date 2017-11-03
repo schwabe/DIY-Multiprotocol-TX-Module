@@ -228,6 +228,20 @@ enum MultiPacketTypes {
 	MULTI_COMMAND_FAILSAFE	 =0x81,
 };
 
+enum FailSafeMode {
+		FAILSAFE_NOTSET 	= 0,
+		FAILSAFE_HOLD		= 1,
+		FAILSAFE_CUSTOM		= 2,
+		FAILSAFE_NOPULSES	= 3,
+		FAILSAFE_RECEIVER	= 4,
+		// Use during update so we can get away with only one copy of Failsafe channels
+		FAILSEFASE_INVALID	= 0xfe
+};
+
+#define FAILSAFE_CHANNEL_HOLD	0
+#define	FAILSAFE_CHANNEL_NOPULSES	2047
+
+
 
 // Macros
 #define NOP() __asm__ __volatile__("nop")
@@ -306,6 +320,10 @@ enum MultiPacketTypes {
 #define IS_TELEMTRY_INVERSION_ON	(multi_config & 0x01)
 #define IS_MULTI_TELEMETRY_ON		(multi_config & 0x02)
 #define IS_EXTRA_TELEMETRY_ON       (multi_config & 0x04)
+
+// Failsafe
+#define	failsafeToPPM(i)			(Failsafe_data[i]* 5/8+860)
+#define isNormalFailsafeChanel(i)	(Failsafe_data[i] != FAILSAFE_CHANNEL_HOLD && Failsafe_data[i] != FAILSAFE_CHANNEL_NOPULSES)
 
 
 //Status messages
