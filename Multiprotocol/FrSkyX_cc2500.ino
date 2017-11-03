@@ -79,10 +79,21 @@ static uint16_t __attribute__((unused)) crc_x(uint8_t *data, uint8_t len)
  // 0-2047, 0 = 817, 1024 = 1500, 2047 = 2182
  //64=860,1024=1500,1984=2140//Taranis 125%
 
-static uint16_t  __attribute__((unused)) scaleForPXX( uint8_t i )
+static uint16_t  __attribute__((unused)) scaleForPXX( uint8_t i, bool failsafe)
 {	//mapped 860,2140(125%) range to 64,1984(PXX values);
+#if 0 && defined (ALLOW_CONFIGURATION)
+    if (failsafe) {
+        if (isNormalFailsafeChanel) {
+            (uint16_t)(((failsafeToPPM(i)-servo_min_125)*3)>>1)+64
+        } else {
+            // multi values of 0 and 2047 match Frsky D16
+            return Failsafe_data[i];
+        }
+    } else
+#endif
 	return (uint16_t)(((Servo_data[i]-servo_min_125)*3)>>1)+64;
 }
+
 
 static void __attribute__((unused)) frskyX_build_bind_packet()
 {
@@ -111,14 +122,16 @@ static void __attribute__((unused)) frskyX_build_bind_packet()
 	//
 }
 
+#define FAILSAFE_TIMEOUT 1032
 static void __attribute__((unused)) frskyX_data_frame()
 {
 	//0x1D 0xB3 0xFD 0x02 0x56 0x07 0x15 0x00 0x00 0x00 0x04 0x40 0x00 0x04 0x40 0x00 0x04 0x40 0x00 0x04 0x40 0x08 0x00 0x00 0x00 0x00 0x00 0x00 0x96 0x12
 	//
-	static uint8_t lpass;
+    static uint16_t packet_counter=0;
 	uint16_t chan_0 ;
 	uint16_t chan_1 ; 
 	uint8_t startChan = 0;
+
 	//
 	packet[0] = (sub_protocol & 2 ) ? 0x20 : 0x1D ; // LBT or FCC
 	packet[1] = rx_tx_addr[3];
@@ -134,32 +147,32 @@ static void __attribute__((unused)) frskyX_data_frame()
 	packet[7] = 0;
 	packet[8] = 0;		
 	//
-	if ( lpass & 1 )
+
+	bool failsafe = false;
+
+	// in X8 mode send only 8ch every 9ms
+	if ( !(sub_protocol & 1) && packet_counter & 1 )
 		startChan += 8 ;
 	
 	for(uint8_t i = 0; i <12 ; i+=3)
 	{//12 bytes
-		chan_0 = scaleForPXX(startChan);		 
-		if(lpass & 1 )
+		chan_0 = scaleForPXX(startChan, failsafe);
+		startChan+=1;
+
+		chan_1 = scaleForPXX(startChan, failsafe);
+		startChan+=1;
+
+		if ( !(sub_protocol & 1) && packet_counter & 1 ) {
 			chan_0+=2048;			
-		startChan+=1;
-		//
-		chan_1 = scaleForPXX(startChan);		
-		if(lpass & 1 )
 			chan_1+= 2048;		
-		startChan+=1;
-		//
+		}
+
 		packet[9+i] = lowByte(chan_0);//3 bytes*4
 		packet[9+i+1]=(((chan_0>>8) & 0x0F)|(chan_1 << 4));
 		packet[9+i+2]=chan_1>>4;
 	}
 
 	packet[21] = (FrX_receive_seq << 4) | FrX_send_seq ;//8 at start
-	
-	if(sub_protocol & 1 )// in X8 mode send only 8ch every 9ms
-		lpass = 0 ;
-	else
-		lpass += 1 ;
 	
 	uint8_t limit = (sub_protocol & 2 ) ? 31 : 28 ;
 	for (uint8_t i=22;i<limit;i++)
@@ -209,7 +222,7 @@ uint16_t ReadFrSkyX()
 			//
 //			frskyX_data_frame();
 			state++;
-			return 5500;
+			return 5200;
 		case FRSKY_DATA2:
 			CC2500_SetTxRxMode(RX_EN);
 			CC2500_Strobe(CC2500_SIDLE);
@@ -218,7 +231,7 @@ uint16_t ReadFrSkyX()
 		case FRSKY_DATA3:		
 			CC2500_Strobe(CC2500_SRX);
 			state++;
-			return 2800;
+			return 3100;
 		case FRSKY_DATA4:
 			len = CC2500_ReadReg(CC2500_3B_RXBYTES | CC2500_READ_BURST) & 0x7F;	
 			if (len && (len<=(0x0E + 3)))				//Telemetry frame is 17
@@ -240,7 +253,7 @@ uint16_t ReadFrSkyX()
 //					seq_last_sent = 0;
 //					seq_last_rcvd = 8;
 					FrX_send_seq = 0x08 ;
-					FrX_receive_seq = 0 ;
+//					FrX_receive_seq = 0 ;
 					packet_count=0;
 					#if defined TELEMETRY
 						telemetry_lost=1;
@@ -248,7 +261,6 @@ uint16_t ReadFrSkyX()
 				}
 				CC2500_Strobe(CC2500_SFRX);			//flush the RXFIFO
 			}
-            telemetry_set_input_sync(9000);
 			frskyX_data_frame();
 			if ( FrX_send_seq != 0x08 )
 			{
@@ -286,8 +298,8 @@ uint16_t initFrSkyX()
 	}
 //	seq_last_sent = 0;
 //	seq_last_rcvd = 8;
-	uint8_t FrX_send_seq = 0x08 ;
-	uint8_t FrX_receive_seq = 0 ;
+	FrX_send_seq = 0x08 ;
+	FrX_receive_seq = 0 ;
 	return 10000;
 }	
 #endif
